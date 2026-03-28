@@ -61,37 +61,31 @@ router.get('/', auth, async (req, res) => {
   if (!matches || matches.length === 0) return res.json([]);
 
   const partnerIds = matches.map(m => m.user1_id === req.user.id ? m.user2_id : m.user1_id);
+  const matchIds = matches.map(m => m.id);
 
-  // Fetch partner profiles
-  const { data: profiles } = await supabase.from('profiles')
-    .select('user_id, name, photos, age, country')
-    .in('user_id', partnerIds);
+  // Batch fetch: profiles, all messages (for last msg + unread) in 3 queries total
+  const [{ data: profiles }, { data: allMessages }] = await Promise.all([
+    supabase.from('profiles')
+      .select('user_id, name, photos, age, country')
+      .in('user_id', partnerIds),
+    supabase.from('messages')
+      .select('id, match_id, content, type, created_at, sender_id, read')
+      .in('match_id', matchIds)
+      .order('created_at', { ascending: false }),
+  ]);
 
+  // Build maps from the single messages fetch
   const profileMap = {};
   (profiles || []).forEach(p => { profileMap[p.user_id] = p; });
 
-  // Fetch last message for each match
-  const matchIds = matches.map(m => m.id);
   const lastMessages = {};
-  await Promise.all(matchIds.map(async (mid) => {
-    const { data } = await supabase.from('messages')
-      .select('content, type, created_at, sender_id, read')
-      .eq('match_id', mid)
-      .order('created_at', { ascending: false })
-      .limit(1);
-    if (data?.[0]) lastMessages[mid] = data[0];
-  }));
-
-  // Count unread messages
   const unreadCounts = {};
-  await Promise.all(matchIds.map(async (mid) => {
-    const { count } = await supabase.from('messages')
-      .select('*', { count: 'exact', head: true })
-      .eq('match_id', mid)
-      .eq('read', false)
-      .neq('sender_id', req.user.id);
-    unreadCounts[mid] = count || 0;
-  }));
+  matchIds.forEach(mid => { lastMessages[mid] = null; unreadCounts[mid] = 0; });
+
+  (allMessages || []).forEach(m => {
+    if (!lastMessages[m.match_id]) lastMessages[m.match_id] = m;
+    if (!m.read && m.sender_id !== req.user.id) unreadCounts[m.match_id]++;
+  });
 
   const result = matches.map(m => {
     const partnerId = m.user1_id === req.user.id ? m.user2_id : m.user1_id;
@@ -102,6 +96,40 @@ router.get('/', auth, async (req, res) => {
       unread_count: unreadCounts[m.id] || 0,
     };
   });
+
+  res.json(result);
+});
+
+// Who liked me (free — Tinder charges for this)
+router.get('/likes', auth, async (req, res) => {
+  const { data: likes, error } = await supabase.from('swipes')
+    .select('user_id, direction, created_at')
+    .eq('target_id', req.user.id)
+    .in('direction', ['like', 'super_like'])
+    .order('created_at', { ascending: false });
+
+  if (error) return res.status(500).json({ error: error.message });
+  if (!likes || likes.length === 0) return res.json([]);
+
+  // Exclude people we've already swiped on
+  const { data: ourSwipes } = await supabase.from('swipes')
+    .select('target_id')
+    .eq('user_id', req.user.id);
+  const swiped = new Set((ourSwipes || []).map(s => s.target_id));
+
+  const pending = likes.filter(l => !swiped.has(l.user_id));
+  if (pending.length === 0) return res.json([]);
+
+  const { data: profiles } = await supabase.from('profiles')
+    .select('user_id, name, age, photos, country')
+    .in('user_id', pending.map(l => l.user_id));
+
+  const profileMap = {};
+  (profiles || []).forEach(p => { profileMap[p.user_id] = p; });
+
+  const result = pending
+    .map(l => ({ ...profileMap[l.user_id], direction: l.direction, liked_at: l.created_at }))
+    .filter(p => p.user_id);
 
   res.json(result);
 });
