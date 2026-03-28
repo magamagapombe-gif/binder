@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand: #FF4458;
+  --brand-dark: #CC2F42;
+  --gold: #FFD700;
+  --font-display: var(--font-syne);
+  --font-body: var(--font-dm);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+  font-family: var(--font-body), sans-serif;
+  max-width: 430px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  position: relative;
+}
+
+h1, h2, h3 { font-family: var(--font-display), sans-serif; }
+
+.btn-primary {
+  @apply w-full py-4 rounded-2xl font-semibold text-white text-lg tracking-wide transition-all active:scale-95;
+  background: linear-gradient(135deg, #FF4458, #FF6B6B);
+  font-family: var(--font-display);
+}
+
+.btn-secondary {
+  @apply w-full py-4 rounded-2xl font-semibold text-white text-lg tracking-wide transition-all active:scale-95 border border-white/10;
+  background: rgba(255,255,255,0.06);
+  font-family: var(--font-display);
+}
+
+.card {
+  @apply rounded-3xl overflow-hidden;
+  background: #1A1A1F;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.input {
+  @apply w-full px-4 py-4 rounded-2xl text-white text-lg outline-none transition-all;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  font-family: var(--font-body);
+}
+.input:focus { border-color: var(--brand); }
+.input::placeholder { color: rgba(255,255,255,0.3); }
+
+.bottom-nav {
+  @apply fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] flex items-center justify-around px-6 py-3;
+  background: rgba(13,13,15,0.95);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  backdrop-filter: blur(20px);
+  z-index: 50;
+}
+
+::-webkit-scrollbar { display: none; }
