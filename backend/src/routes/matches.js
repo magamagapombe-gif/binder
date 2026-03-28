@@ -6,15 +6,20 @@ const { v4: uuidv4 } = require('uuid');
 // Swipe
 router.post('/swipe', auth, async (req, res) => {
   const { target_id, direction } = req.body;
+  if (!['like', 'pass', 'super_like'].includes(direction)) {
+    return res.status(400).json({ error: 'Invalid direction' });
+  }
 
   await supabase.from('swipes').upsert({
     id: uuidv4(), user_id: req.user.id, target_id, direction, created_at: new Date()
   }, { onConflict: 'user_id,target_id' });
 
-  if (direction !== 'like') return res.json({ match: false });
+  if (direction === 'pass') return res.json({ match: false });
 
+  // Both 'like' and 'super_like' can create a match
   const { data: mutual } = await supabase.from('swipes')
-    .select('*').eq('user_id', target_id).eq('target_id', req.user.id).eq('direction', 'like').single();
+    .select('*').eq('user_id', target_id).eq('target_id', req.user.id)
+    .in('direction', ['like', 'super_like']).single();
 
   if (mutual) {
     // Check if match already exists
@@ -23,7 +28,7 @@ router.post('/swipe', auth, async (req, res) => {
       .or(`and(user1_id.eq.${req.user.id},user2_id.eq.${target_id}),and(user1_id.eq.${target_id},user2_id.eq.${req.user.id})`)
       .single();
 
-    if (existing) return res.json({ match: true, match_id: existing.id });
+    if (existing) return res.json({ match: true, match_id: existing.id, super: direction === 'super_like' });
 
     const matchId = uuidv4();
     await supabase.from('matches').insert({
@@ -34,7 +39,12 @@ router.post('/swipe', auth, async (req, res) => {
     const { data: partnerProfile } = await supabase.from('profiles')
       .select('user_id, name, photos, age').eq('user_id', target_id).single();
 
-    return res.json({ match: true, match_id: matchId, partner: partnerProfile });
+    return res.json({ match: true, match_id: matchId, partner: partnerProfile, super: direction === 'super_like' });
+  }
+
+  // If we sent a super like, notify the target (they can see who liked them)
+  if (direction === 'super_like') {
+    return res.json({ match: false, super_sent: true });
   }
 
   res.json({ match: false });

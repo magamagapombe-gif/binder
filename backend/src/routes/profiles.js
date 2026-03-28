@@ -11,12 +11,15 @@ router.get('/me', auth, async (req, res) => {
 
 // Create/update profile
 router.post('/', auth, async (req, res) => {
-  const { name, age, gender, interested_in, bio, location_lat, location_lng, country } = req.body;
+  const { name, age, gender, interested_in, bio, location_lat, location_lng, country, min_age_pref, max_age_pref } = req.body;
   const allowed = ['UG', 'KE', 'TZ'];
   if (country && !allowed.includes(country)) return res.status(403).json({ error: 'App only available in Uganda, Kenya, Tanzania' });
 
   const { data, error } = await supabase.from('profiles').upsert({
-    user_id: req.user.id, name, age, gender, interested_in, bio, location_lat, location_lng, country, updated_at: new Date(),
+    user_id: req.user.id, name, age, gender, interested_in, bio, location_lat, location_lng, country,
+    min_age_pref: min_age_pref || 18,
+    max_age_pref: max_age_pref || 60,
+    updated_at: new Date(),
   }, { onConflict: 'user_id' }).select().single();
 
   if (error) return res.status(500).json({ error: error.message });
@@ -53,9 +56,20 @@ router.get('/discover', auth, async (req, res) => {
   const swipedIds = swiped?.map(s => s.target_id) || [];
   swipedIds.push(req.user.id); // exclude self
 
+  // Get blocked users
+  const { data: blockedData } = await supabase.from('blocks')
+    .select('blocked_id').eq('blocker_id', req.user.id);
+  const { data: blockedByData } = await supabase.from('blocks')
+    .select('blocker_id').eq('blocked_id', req.user.id);
+  const blockedIds = [
+    ...(blockedData || []).map(b => b.blocked_id),
+    ...(blockedByData || []).map(b => b.blocker_id),
+  ];
+  const excludeIds = [...new Set([...swipedIds, ...blockedIds])];
+
   let query = supabase.from('profiles')
     .select('*, users!inner(phone, is_verified)')
-    .not('user_id', 'in', `(${swipedIds.join(',') || "''"})`);
+    .not('user_id', 'in', `(${excludeIds.join(',') || "''"})`);
 
   // Only filter by country if the user has a country set
   if (myProfile.country) {
@@ -66,6 +80,11 @@ router.get('/discover', auth, async (req, res) => {
   if (myProfile.interested_in && myProfile.interested_in !== 'both') {
     query = query.eq('gender', myProfile.interested_in === 'men' ? 'man' : 'woman');
   }
+
+  // Age range filter from query params
+  const minAge = parseInt(req.query.min_age) || myProfile.min_age_pref || 18;
+  const maxAge = parseInt(req.query.max_age) || myProfile.max_age_pref || 60;
+  query = query.gte('age', minAge).lte('age', maxAge);
 
   query = query.limit(20);
 

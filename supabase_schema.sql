@@ -99,3 +99,45 @@ create policy "service_role_all" on stories using (true) with check (true);
 -- Create bucket: stories (public: true)
 
 -- REALTIME (enable for messages and stories tables in Supabase Dashboard > Database > Replication)
+
+-- ── MIGRATION: Add age preference columns to profiles ─────────────────────
+alter table profiles
+  add column if not exists min_age_pref int default 18,
+  add column if not exists max_age_pref int default 60;
+
+-- ── BLOCKS ───────────────────────────────────────────────────────────────────
+create table if not exists blocks (
+  id uuid primary key default uuid_generate_v4(),
+  blocker_id uuid references users(id) on delete cascade,
+  blocked_id uuid references users(id) on delete cascade,
+  reason text,
+  created_at timestamptz default now(),
+  unique(blocker_id, blocked_id)
+);
+
+create index if not exists on blocks(blocker_id);
+create index if not exists on blocks(blocked_id);
+
+alter table blocks enable row level security;
+create policy "service_role_all" on blocks using (true) with check (true);
+
+-- ── REPORTS ──────────────────────────────────────────────────────────────────
+create table if not exists reports (
+  id uuid primary key default uuid_generate_v4(),
+  reporter_id uuid references users(id) on delete cascade,
+  reported_id uuid references users(id) on delete cascade,
+  reason text,
+  created_at timestamptz default now(),
+  unique(reporter_id, reported_id)
+);
+
+alter table reports enable row level security;
+create policy "service_role_all" on reports using (true) with check (true);
+
+-- ── SUPER LIKE direction support ──────────────────────────────────────────────
+alter table swipes
+  drop constraint if exists swipes_direction_check;
+
+alter table swipes
+  add constraint swipes_direction_check
+  check (direction in ('like', 'pass', 'super_like'));

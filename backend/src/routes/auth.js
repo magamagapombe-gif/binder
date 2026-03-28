@@ -57,8 +57,12 @@ router.post('/verify-otp', async (req, res) => {
     user = data;
   }
 
+  // Check if profile exists and has required fields (name) to determine if new
+  const { data: profile } = await supabase.from('profiles').select('name').eq('user_id', user.id).single();
+  const isNew = !profile || !profile.name;
+
   const token = jwt.sign({ id: user.id, phone: user.phone }, process.env.JWT_SECRET, { expiresIn: '30d' });
-  res.json({ token, user, isNew: !user.name });
+  res.json({ token, user, isNew });
 });
 
 module.exports = router;

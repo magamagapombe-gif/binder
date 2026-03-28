@@ -28,6 +28,7 @@ app.use('/api/messages', require('./routes/messages'));
 app.use('/api/stories', require('./routes/stories'));
 app.use('/api/verify', require('./routes/verify'));
 app.use('/api/calls', require('./routes/calls'));
+app.use('/api/blocks', require('./routes/blocks'));
 
 app.get('/health', (_, res) => res.json({ 
   status: 'ok', 

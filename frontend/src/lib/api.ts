@@ -29,11 +29,15 @@ export const api = {
   getMe: () => req('/api/profiles/me'),
   updateProfile: (data: any) => req('/api/profiles', { method: 'POST', body: JSON.stringify(data) }),
   uploadPhoto: (base64: string, filename: string) => req('/api/profiles/photo', { method: 'POST', body: JSON.stringify({ base64, filename }) }),
-  discover: () => req('/api/profiles/discover'),
+  discover: (params?: { min_age?: number; max_age?: number }) => {
+    const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([,v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : '';
+    return req(`/api/profiles/discover${qs}`);
+  },
   getProfile: (id: string) => req(`/api/profiles/${id}`),
 
   // Matches
-  swipe: (target_id: string, direction: 'like' | 'pass') => req('/api/matches/swipe', { method: 'POST', body: JSON.stringify({ target_id, direction }) }),
+  swipe: (target_id: string, direction: 'like' | 'pass' | 'super_like') =>
+    req('/api/matches/swipe', { method: 'POST', body: JSON.stringify({ target_id, direction }) }),
   getMatches: () => req('/api/matches'),
   unmatch: (id: string) => req(`/api/matches/${id}`, { method: 'DELETE' }),
 
@@ -55,4 +59,12 @@ export const api = {
   // Calls
   getCallToken: (room_name: string, participant_name: string) =>
     req('/api/calls/token', { method: 'POST', body: JSON.stringify({ room_name, participant_name }) }),
+
+  // Blocks & Reports
+  blockUser: (blocked_id: string, reason?: string) =>
+    req('/api/blocks', { method: 'POST', body: JSON.stringify({ blocked_id, reason }) }),
+  reportUser: (reported_id: string, reason: string) =>
+    req('/api/blocks/report', { method: 'POST', body: JSON.stringify({ reported_id, reason }) }),
+  getBlocked: () => req('/api/blocks'),
+  unblockUser: (blocked_id: string) => req(`/api/blocks/${blocked_id}`, { method: 'DELETE' }),
 };
