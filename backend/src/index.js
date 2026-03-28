@@ -1,4 +1,11 @@
 require('dotenv').config();
+
+// Log env status on startup
+console.log('[ENV] SUPABASE_URL:', process.env.SUPABASE_URL ? '✅ set' : '❌ MISSING');
+console.log('[ENV] SUPABASE_SERVICE_KEY:', process.env.SUPABASE_SERVICE_KEY ? '✅ set' : '❌ MISSING');
+console.log('[ENV] JWT_SECRET:', process.env.JWT_SECRET ? '✅ set' : '❌ MISSING');
+console.log('[ENV] ALLOWED_ORIGINS:', process.env.ALLOWED_ORIGINS || '❌ MISSING');
+
 const express = require('express');
 const cors = require('cors');
 const { createServer } = require('http');
@@ -22,7 +29,14 @@ app.use('/api/stories', require('./routes/stories'));
 app.use('/api/verify', require('./routes/verify'));
 app.use('/api/calls', require('./routes/calls'));
 
-app.get('/health', (_, res) => res.json({ status: 'ok', service: 'binder-api' }));
+app.get('/health', (_, res) => res.json({ 
+  status: 'ok', 
+  service: 'binder-api',
+  env: {
+    supabase: !!process.env.SUPABASE_URL,
+    jwt: !!process.env.JWT_SECRET,
+  }
+}));
 
 setupWebSocket(server);
 
