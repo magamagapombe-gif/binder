@@ -3,12 +3,5 @@
   "buildCommand": "next build",
   "outputDirectory": ".next",
   "devCommand": "next dev",
-  "installCommand": "npm install",
-  "env": {
-    "NEXT_PUBLIC_API_URL": "https://binder-api.onrender.com",
-    "NEXT_PUBLIC_SUPABASE_URL": "@supabase_url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase_anon_key",
-    "NEXT_PUBLIC_LIVEKIT_URL": "@livekit_url",
-    "NEXT_PUBLIC_FACEIO_APP_ID": "@faceio_app_id"
-  }
+  "installCommand": "npm install"
 }
