@@ -33,14 +33,29 @@ router.get('/', auth, async (req, res) => {
   const partnerIds = (matches || []).map(m => m.user1_id === req.user.id ? m.user2_id : m.user1_id);
   partnerIds.push(req.user.id);
 
-  const { data, error } = await supabase.from('stories')
-    .select('*, profiles(name, photos)')
+  // Fetch stories without join
+  const { data: stories, error } = await supabase.from('stories')
+    .select('*')
     .in('user_id', partnerIds)
     .gt('expires_at', new Date().toISOString())
     .order('created_at', { ascending: false });
 
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+
+  // Fetch profiles separately
+  const { data: profiles } = await supabase.from('profiles')
+    .select('user_id, name, photos')
+    .in('user_id', partnerIds);
+
+  const profileMap = {};
+  (profiles || []).forEach(p => { profileMap[p.user_id] = p; });
+
+  const result = (stories || []).map(s => ({
+    ...s,
+    profile: profileMap[s.user_id] || null,
+  }));
+
+  res.json(result);
 });
 
 // Delete story
