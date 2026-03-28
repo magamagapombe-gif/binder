@@ -1,66 +1,121 @@
 'use client';
-import { useEffect, useRef, useCallback } from 'react';
-import { useStore } from '@/store';
+/**
+ * FIXED WebSocket — single shared connection with an event bus.
+ *
+ * Problems with the old approach:
+ * 1. Each component calling useWebSocket() tried to open its own connection.
+ *    The backend's `clients` Map (userId → ws) only stores ONE socket per user,
+ *    so the last one to connect would overwrite the others — meaning messages
+ *    sent to earlier sockets were silently dropped.
+ * 2. Storing the WebSocket in Zustand caused stale-ref bugs because Zustand
+ *    does shallow equality checks and WebSocket objects don't compare cleanly.
+ *
+ * Fix: one module-level singleton socket + a Set of listener callbacks.
+ * Any component that calls useWebSocket() just registers its callback with
+ * the shared bus — there is always exactly ONE open socket to the backend.
+ */
 
-const WS_BASE = (() => {
-  const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { useEffect, useRef } from 'react';
+
+const BASE = (() => {
+  const url = typeof window !== 'undefined'
+    ? (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000')
+    : 'http://localhost:4000';
   return url.replace(/^http/, 'ws');
 })();
 
+// ── Singleton state ───────────────────────────────────────────────────────────
+let socket: WebSocket | null = null;
+let currentToken: string | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+const listeners = new Set<(msg: any) => void>();
+
+function broadcast(msg: any) {
+  listeners.forEach(fn => {
+    try { fn(msg); } catch {}
+  });
+}
+
+function connect(token: string) {
+  // Already open for this token — nothing to do
+  if (socket && socket.readyState === WebSocket.OPEN && currentToken === token) return;
+
+  // Close stale socket if token changed
+  if (socket && currentToken !== token) {
+    socket.onclose = null;
+    socket.close();
+    socket = null;
+  }
+
+  currentToken = token;
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+
+  try {
+    const ws = new WebSocket(`${BASE}/ws?token=${token}`);
+    socket = ws;
+
+    ws.onopen = () => {
+      console.log('[WS] connected');
+    };
+
+    ws.onmessage = (e) => {
+      try { broadcast(JSON.parse(e.data)); } catch {}
+    };
+
+    ws.onclose = () => {
+      if (socket === ws) {
+        socket = null;
+        console.log('[WS] closed — reconnecting in 3s');
+        reconnectTimer = setTimeout(() => {
+          if (currentToken) connect(currentToken);
+        }, 3000);
+      }
+    };
+
+    ws.onerror = () => ws.close();
+  } catch {
+    reconnectTimer = setTimeout(() => {
+      if (currentToken) connect(currentToken);
+    }, 5000);
+  }
+}
+
+export function disconnectWs() {
+  currentToken = null;
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  if (socket) { socket.onclose = null; socket.close(); socket = null; }
+}
+
+export function sendWs(data: any): boolean {
+  if (socket?.readyState === WebSocket.OPEN) {
+    socket.send(JSON.stringify(data));
+    return true;
+  }
+  return false;
+}
+
+// ── Hook ──────────────────────────────────────────────────────────────────────
 export function useWebSocket(onMessage?: (msg: any) => void) {
-  const { token, setWs, wsRef } = useStore();
+  // Keep the callback ref fresh without re-registering
   const cbRef = useRef(onMessage);
-  const reconnectTimer = useRef<any>(null);
-  const mounted = useRef(true);
   cbRef.current = onMessage;
 
-  const connect = useCallback(() => {
-    if (!token || !mounted.current) return;
-    if (wsRef?.readyState === WebSocket.OPEN) return;
-
-    try {
-      const ws = new WebSocket(`${WS_BASE}/ws?token=${token}`);
-
-      ws.onopen = () => {
-        if (!mounted.current) { ws.close(); return; }
-        setWs(ws);
-        clearTimeout(reconnectTimer.current);
-        console.log('[WS] connected');
-      };
-
-      ws.onmessage = (e) => {
-        try { cbRef.current?.(JSON.parse(e.data)); } catch {}
-      };
-
-      ws.onclose = (e) => {
-        setWs(null);
-        if (!mounted.current) return;
-        console.log('[WS] closed, reconnecting in 3s...');
-        reconnectTimer.current = setTimeout(connect, 3000);
-      };
-
-      ws.onerror = () => {
-        ws.close();
-      };
-    } catch (err) {
-      reconnectTimer.current = setTimeout(connect, 5000);
-    }
-  }, [token]);
-
   useEffect(() => {
-    mounted.current = true;
-    if (token) connect();
+    // Ensure we're connected (reads token directly from localStorage so we
+    // don't need to depend on the Zustand store here)
+    const token = typeof window !== 'undefined' ? localStorage.getItem('binder_token') : null;
+    if (token) connect(token);
+
+    // Register this component's listener on the shared bus
+    const handler = (msg: any) => cbRef.current?.(msg);
+    if (onMessage) listeners.add(handler);
+
     return () => {
-      mounted.current = false;
-      clearTimeout(reconnectTimer.current);
+      listeners.delete(handler);
     };
-  }, [token, connect]);
+  }, []); // intentionally empty — singleton manages its own lifecycle
 
-  const send = useCallback((data: any) => {
-    if (wsRef?.readyState === WebSocket.OPEN) {
-      wsRef.send(JSON.stringify(data));
-    }
-  }, [wsRef]);
+  const send = (data: any) => sendWs(data);
 
-  return { send, ws: wsRef };
+  return { send };
 }

@@ -29,7 +29,7 @@ export const api = {
   getMe: () => req('/api/profiles/me'),
   updateProfile: (data: any) => req('/api/profiles', { method: 'POST', body: JSON.stringify(data) }),
   uploadPhoto: (base64: string, filename: string) => req('/api/profiles/photo', { method: 'POST', body: JSON.stringify({ base64, filename }) }),
-  discover: (params?: { min_age?: number; max_age?: number }) => {
+  discover: (params?: { min_age?: number; max_age?: number; max_km?: number }) => {
     const qs = params ? '?' + new URLSearchParams(Object.entries(params).filter(([,v]) => v !== undefined).map(([k, v]) => [k, String(v)])).toString() : '';
     return req(`/api/profiles/discover${qs}`);
   },
@@ -39,6 +39,7 @@ export const api = {
   swipe: (target_id: string, direction: 'like' | 'pass' | 'super_like') =>
     req('/api/matches/swipe', { method: 'POST', body: JSON.stringify({ target_id, direction }) }),
   getMatches: () => req('/api/matches'),
+  getLikes: () => req('/api/matches/likes'),
   unmatch: (id: string) => req(`/api/matches/${id}`, { method: 'DELETE' }),
 
   // Messages
@@ -67,4 +68,25 @@ export const api = {
     req('/api/blocks/report', { method: 'POST', body: JSON.stringify({ reported_id, reason }) }),
   getBlocked: () => req('/api/blocks'),
   unblockUser: (blocked_id: string) => req(`/api/blocks/${blocked_id}`, { method: 'DELETE' }),
+};
+
+
+// Notifications (appended)
+export const notifApi = {
+  getVapidKey: () => fetch(`${BASE}/api/notifications/vapid-public-key`).then(r => r.json()),
+  subscribe: (subscription: any) => {
+    const token = getToken();
+    return fetch(`${BASE}/api/notifications/subscribe`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      body: JSON.stringify({ subscription }),
+    }).then(r => r.json());
+  },
+  unsubscribe: () => {
+    const token = getToken();
+    return fetch(`${BASE}/api/notifications/subscribe`, {
+      method: 'DELETE',
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    }).then(r => r.json());
+  },
 };

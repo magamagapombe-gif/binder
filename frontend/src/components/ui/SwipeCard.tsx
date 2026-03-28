@@ -1,7 +1,7 @@
 'use client';
 import { useState, useRef } from 'react';
 import { motion, useMotionValue, useTransform, animate } from 'framer-motion';
-import { Shield, ChevronUp } from 'lucide-react';
+import { Shield, ChevronUp, X, Heart, Star } from 'lucide-react';
 
 interface Props {
   profile: any;
@@ -17,7 +17,6 @@ export default function SwipeCard({ profile, onSwipe, onTap, isTop }: Props) {
   const likeOpacity = useTransform(x, [30, 100], [0, 1]);
   const passOpacity = useTransform(x, [-100, -30], [1, 0]);
 
-  // Track pointer movement to distinguish tap vs drag
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const didDrag = useRef(false);
 
@@ -46,37 +45,27 @@ export default function SwipeCard({ profile, onSwipe, onTap, isTop }: Props) {
       dragElastic={0.6}
       dragMomentum={false}
       onDragStart={() => { didDrag.current = false; }}
-      onDrag={(_, info) => {
-        // Only mark as drag if moved more than 8px
-        if (Math.abs(info.offset.x) > 8) didDrag.current = true;
-      }}
+      onDrag={(_, info) => { if (Math.abs(info.offset.x) > 8) didDrag.current = true; }}
       onDragEnd={handleDragEnd}
       className="select-none"
     >
       {/* LIKE stamp */}
-      <motion.div
-        style={{ opacity: likeOpacity }}
-        className="absolute top-10 left-5 z-20 pointer-events-none"
-      >
+      <motion.div style={{ opacity: likeOpacity }} className="absolute top-10 left-5 z-20 pointer-events-none">
         <div className="border-4 border-green-400 rounded-xl px-4 py-1.5 rotate-[-18deg]">
           <span className="text-green-400 font-black text-3xl tracking-widest">LIKE</span>
         </div>
       </motion.div>
 
       {/* NOPE stamp */}
-      <motion.div
-        style={{ opacity: passOpacity }}
-        className="absolute top-10 right-5 z-20 pointer-events-none"
-      >
+      <motion.div style={{ opacity: passOpacity }} className="absolute top-10 right-5 z-20 pointer-events-none">
         <div className="border-4 border-red-400 rounded-xl px-4 py-1.5 rotate-[18deg]">
           <span className="text-red-400 font-black text-3xl tracking-widest">NOPE</span>
         </div>
       </motion.div>
 
-      {/* Card */}
-      <div className="relative w-full aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl">
+      {/* ── Card image area ── */}
+      <div className="relative w-full rounded-3xl overflow-hidden shadow-2xl" style={{ aspectRatio: '3/4' }}>
 
-        {/* Photo */}
         <img
           src={photos[photoIdx]}
           alt={profile.name}
@@ -85,10 +74,11 @@ export default function SwipeCard({ profile, onSwipe, onTap, isTop }: Props) {
           style={{ willChange: 'auto' }}
         />
 
-        {/* Gradient */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/5 to-transparent pointer-events-none" />
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.55) 35%, rgba(0,0,0,0.08) 60%, transparent 100%)' }}
+        />
 
-        {/* Photo indicator dots — top center, doesn't block swipe area */}
         {photos.length > 1 && (
           <div className="absolute top-3 inset-x-3 z-10 flex gap-1 pointer-events-none">
             {photos.map((_: string, i: number) => (
@@ -97,39 +87,39 @@ export default function SwipeCard({ profile, onSwipe, onTap, isTop }: Props) {
           </div>
         )}
 
-        {/* Bottom info + controls — isolated tap area */}
-        <div className="absolute bottom-0 left-0 right-0 p-5 z-10">
+        {/* Profile info inside image — name, bio, country */}
+        <div className="absolute bottom-0 left-0 right-0 z-10 px-4 pt-6 pb-4">
           <div className="flex items-end justify-between gap-3">
             <div className="flex-1 min-w-0">
-              {/* Name row */}
               <div className="flex items-center gap-2 flex-wrap">
                 <h2
                   className="text-2xl font-bold text-white"
-                  style={{ fontFamily: 'var(--font-display)', textShadow: '0 1px 8px rgba(0,0,0,0.5)' }}
+                  style={{ fontFamily: 'var(--font-display)', textShadow: '0 2px 12px rgba(0,0,0,0.8)' }}
                 >
                   {profile.name}
                 </h2>
-                <span className="text-xl text-white/80 font-semibold">{profile.age}</span>
+                <span className="text-xl text-white font-semibold" style={{ textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}>
+                  {profile.age}
+                </span>
                 {(profile.users?.is_verified || profile.is_verified) && (
                   <Shield size={15} className="text-[#FF4458]" />
                 )}
               </div>
 
-              {/* Bio */}
               {profile.bio && (
-                <p className="text-white/75 text-sm mt-1 line-clamp-2 leading-snug">{profile.bio}</p>
+                <p className="text-white/90 text-sm mt-1 line-clamp-2 leading-snug" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.9)' }}>
+                  {profile.bio}
+                </p>
               )}
 
-              {/* Country */}
               <div className="flex items-center gap-1.5 mt-1.5">
                 <span className="text-sm">{countryFlag}</span>
-                <span className="text-white/45 text-xs">{countryName}</span>
+                <span className="text-white/70 text-xs">{countryName}</span>
               </div>
             </div>
 
-            {/* Photo nav + expand — right column */}
+            {/* Expand button + photo nav */}
             <div className="flex flex-col items-center gap-2 flex-shrink-0">
-              {/* Expand profile */}
               {onTap && (
                 <button
                   onPointerDown={e => { pointerStart.current = { x: e.clientX, y: e.clientY }; }}
@@ -146,35 +136,59 @@ export default function SwipeCard({ profile, onSwipe, onTap, isTop }: Props) {
                 </button>
               )}
 
-              {/* Prev/Next photo buttons */}
               {photos.length > 1 && (
                 <>
                   <button
                     onPointerDown={e => e.stopPropagation()}
-                    onPointerUp={e => {
-                      e.stopPropagation();
-                      setPhotoIdx(i => Math.min(photos.length - 1, i + 1));
-                    }}
+                    onPointerUp={e => { e.stopPropagation(); setPhotoIdx(i => Math.min(photos.length - 1, i + 1)); }}
                     className="w-8 h-8 rounded-full bg-white/15 backdrop-blur flex items-center justify-center text-white text-xs font-bold"
-                  >
-                    ›
-                  </button>
+                  >›</button>
                   <button
                     onPointerDown={e => e.stopPropagation()}
-                    onPointerUp={e => {
-                      e.stopPropagation();
-                      setPhotoIdx(i => Math.max(0, i - 1));
-                    }}
+                    onPointerUp={e => { e.stopPropagation(); setPhotoIdx(i => Math.max(0, i - 1)); }}
                     className="w-8 h-8 rounded-full bg-white/15 backdrop-blur flex items-center justify-center text-white text-xs font-bold"
-                  >
-                    ‹
-                  </button>
+                  >‹</button>
                 </>
               )}
             </div>
           </div>
         </div>
       </div>
+
+      {/* ── Action buttons BELOW the card image — never overlaps ── */}
+      {isTop && (
+        <div className="flex items-center justify-center gap-5 pt-4 pb-2">
+          <motion.button
+            whileTap={{ scale: 0.82 }}
+            onPointerDown={e => e.stopPropagation()}
+            onPointerUp={e => { e.stopPropagation(); onSwipe('pass'); }}
+            className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
+            style={{ background: '#1A1A1F', border: '2px solid rgba(255,255,255,0.15)' }}
+          >
+            <X size={26} className="text-white/70" />
+          </motion.button>
+
+          <motion.button
+            whileTap={{ scale: 0.82 }}
+            onPointerDown={e => e.stopPropagation()}
+            onPointerUp={e => { e.stopPropagation(); onSwipe('super_like'); }}
+            className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
+            style={{ background: '#1A1A1F', border: '2px solid rgba(250,204,21,0.4)' }}
+          >
+            <Star size={20} className="text-yellow-400 fill-yellow-400" />
+          </motion.button>
+
+          <motion.button
+            whileTap={{ scale: 0.82 }}
+            onPointerDown={e => e.stopPropagation()}
+            onPointerUp={e => { e.stopPropagation(); onSwipe('like'); }}
+            className="w-16 h-16 rounded-full flex items-center justify-center shadow-xl"
+            style={{ background: 'linear-gradient(135deg, #FF4458, #FF6B6B)', boxShadow: '0 4px 24px rgba(255,68,88,0.5)' }}
+          >
+            <Heart size={28} className="text-white fill-white" />
+          </motion.button>
+        </div>
+      )}
     </motion.div>
   );
 }

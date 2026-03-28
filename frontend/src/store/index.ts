@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { disconnectWs } from '@/hooks/useWebSocket';
 
 interface User { id: string; phone: string; is_verified: boolean; }
 interface Profile {
@@ -12,10 +13,8 @@ interface Store {
   token: string | null;
   user: User | null;
   profile: Profile | null;
-  wsRef: WebSocket | null;
   setAuth: (token: string, user: User) => void;
   setProfile: (p: Profile) => void;
-  setWs: (ws: WebSocket | null) => void;
   logout: () => void;
 }
 
@@ -25,16 +24,15 @@ export const useStore = create<Store>()(
       token: null,
       user: null,
       profile: null,
-      wsRef: null,
       setAuth: (token, user) => {
         localStorage.setItem('binder_token', token);
         set({ token, user });
       },
       setProfile: (profile) => set({ profile }),
-      setWs: (wsRef) => set({ wsRef }),
       logout: () => {
         localStorage.removeItem('binder_token');
-        set({ token: null, user: null, profile: null, wsRef: null });
+        disconnectWs(); // cleanly close the shared WS on logout
+        set({ token: null, user: null, profile: null });
       },
     }),
     {

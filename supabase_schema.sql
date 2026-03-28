@@ -141,3 +141,29 @@ alter table swipes
 alter table swipes
   add constraint swipes_direction_check
   check (direction in ('like', 'pass', 'super_like'));
+
+
+-- ═══════════════════════════════════════════════════════════════════════════
+-- MIGRATION v2: Elo ranking + distance filter + last_active
+-- Run this in Supabase SQL editor
+-- ═══════════════════════════════════════════════════════════════════════════
+
+-- Elo score for every profile (default 1000, same as chess starting Elo)
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS elo_score       INT     DEFAULT 1000;
+
+-- Max distance preference (km). NULL = country-wide (no limit).
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS max_distance_km INT     DEFAULT NULL;
+
+-- Last time the user was active (updated on profile save + any API call)
+ALTER TABLE profiles
+  ADD COLUMN IF NOT EXISTS last_active     TIMESTAMPTZ DEFAULT NOW();
+
+-- Index so discover query can ORDER BY elo_score efficiently
+CREATE INDEX IF NOT EXISTS profiles_elo_score_idx ON profiles(elo_score DESC);
+CREATE INDEX IF NOT EXISTS profiles_last_active_idx ON profiles(last_active DESC);
+
+-- Initialise existing profiles so they aren't stuck at NULL
+UPDATE profiles SET elo_score = 1000 WHERE elo_score IS NULL;
+UPDATE profiles SET last_active = updated_at WHERE last_active IS NULL;

@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Heart, Star, RefreshCw, ChevronDown, Flag, Ban, Check } from 'lucide-react';
+import { RefreshCw, ChevronDown, Flag, Ban, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
@@ -195,6 +195,14 @@ function ReportModal({ name, onClose, onSubmit }: {
 }
 
 // ─── Main Discover Page ───────────────────────────────────────────────────────
+const KM_OPTIONS = [
+  { label: '5 km',     value: 5   },
+  { label: '10 km',    value: 10  },
+  { label: '25 km',    value: 25  },
+  { label: '50 km',    value: 50  },
+  { label: 'Anywhere', value: null },
+];
+
 export default function DiscoverPage() {
   const router = useRouter();
   const [profiles, setProfiles] = useState<any[]>([]);
@@ -204,13 +212,16 @@ export default function DiscoverPage() {
   const [viewingProfile, setViewingProfile] = useState<any>(null);
   const [reportTarget, setReportTarget] = useState<any>(null);
   const [superAnim, setSuperAnim] = useState(false);
+  const [maxKm, setMaxKm] = useState<number | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
   const fetchingMore = useRef(false);
 
-  const loadProfiles = useCallback(async (reset = false) => {
+  const loadProfiles = useCallback(async (reset = false, km?: number | null) => {
     if (fetchingMore.current && !reset) return;
     fetchingMore.current = true;
     try {
-      const data: any[] = await api.discover() || [];
+      const activeKm = km !== undefined ? km : maxKm;
+      const data: any[] = await api.discover(activeKm ? { max_km: activeKm } : {}) || [];
 
       // Preload ALL images immediately so they're cached when cards appear
       data.forEach((p: any) => {
@@ -229,7 +240,7 @@ export default function DiscoverPage() {
       setLoading(false);
       fetchingMore.current = false;
     }
-  }, []);
+  }, [maxKm]);
 
   useEffect(() => { loadProfiles(true); }, []);
 
@@ -295,6 +306,29 @@ export default function DiscoverPage() {
           binder 🔥
         </h1>
         <div className="flex items-center gap-2">
+          {/* Distance filter pill */}
+          <div className="relative">
+            <button
+              onClick={() => setShowFilters(v => !v)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold border transition-all ${maxKm ? 'bg-[#FF4458]/15 border-[#FF4458]/40 text-[#FF4458]' : 'bg-white/8 border-white/10 text-white/50'}`}
+            >
+              📍 {maxKm ? `${maxKm} km` : 'Any dist.'}
+            </button>
+            {showFilters && (
+              <div className="absolute top-10 right-0 z-50 bg-[#1A1A1F] border border-white/10 rounded-2xl overflow-hidden shadow-2xl w-36">
+                {KM_OPTIONS.map(opt => (
+                  <button key={String(opt.value)} onClick={() => {
+                    setMaxKm(opt.value);
+                    setShowFilters(false);
+                    loadProfiles(true, opt.value);
+                  }} className={`w-full text-left px-4 py-3 text-sm transition-colors hover:bg-white/8 ${maxKm === opt.value ? 'text-[#FF4458] font-semibold' : 'text-white/70'}`}>
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button onClick={() => router.push('/settings')}
             className="w-10 h-10 rounded-full bg-white/8 border border-white/10 flex items-center justify-center">
             <span className="text-lg">⚙️</span>
@@ -366,39 +400,6 @@ export default function DiscoverPage() {
           </div>
         )}
       </div>
-
-      {/* Action Buttons */}
-      {profiles.length > 0 && !loading && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-center gap-5 py-3 px-6"
-        >
-          <motion.button
-            whileTap={{ scale: 0.82 }}
-            onClick={() => handleSwipe('pass')}
-            className="w-16 h-16 rounded-full border-2 border-white/15 bg-white/5 flex items-center justify-center shadow-lg active:bg-white/10"
-          >
-            <X size={28} className="text-white/50" />
-          </motion.button>
-
-          <motion.button
-            whileTap={{ scale: 0.82 }}
-            onClick={() => handleSwipe('super_like')}
-            className="w-14 h-14 rounded-full border-2 border-yellow-400/40 bg-yellow-400/10 flex items-center justify-center active:bg-yellow-400/20"
-          >
-            <Star size={22} className="text-yellow-400 fill-yellow-400" />
-          </motion.button>
-
-          <motion.button
-            whileTap={{ scale: 0.82 }}
-            onClick={() => handleSwipe('like')}
-            className="w-20 h-20 rounded-full flex items-center justify-center shadow-xl shadow-[#FF4458]/30"
-            style={{ background: 'linear-gradient(135deg, #FF4458, #FF6B6B)' }}
-          >
-            <Heart size={34} className="text-white fill-white" />
-          </motion.button>
-        </motion.div>
-      )}
 
       <BottomNav />
 
