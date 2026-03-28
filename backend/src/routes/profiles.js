@@ -36,7 +36,6 @@ router.post('/photo', auth, async (req, res) => {
 
   const { data: { publicUrl } } = supabase.storage.from('profile-photos').getPublicUrl(path);
 
-  // Add to profile photos array
   const { data: profile } = await supabase.from('profiles').select('photos').eq('user_id', req.user.id).single();
   const photos = [...(profile?.photos || []), publicUrl];
   await supabase.from('profiles').update({ photos }).eq('user_id', req.user.id);
@@ -44,7 +43,7 @@ router.post('/photo', auth, async (req, res) => {
   res.json({ url: publicUrl });
 });
 
-// Get discovery feed (users to swipe)
+// Get discovery feed
 router.get('/discover', auth, async (req, res) => {
   const { data: myProfile } = await supabase.from('profiles').select('*').eq('user_id', req.user.id).single();
   if (!myProfile) return res.status(400).json({ error: 'Complete your profile first' });
@@ -52,21 +51,27 @@ router.get('/discover', auth, async (req, res) => {
   // Get already swiped
   const { data: swiped } = await supabase.from('swipes').select('target_id').eq('user_id', req.user.id);
   const swipedIds = swiped?.map(s => s.target_id) || [];
-  swipedIds.push(req.user.id);
+  swipedIds.push(req.user.id); // exclude self
 
   let query = supabase.from('profiles')
     .select('*, users!inner(phone, is_verified)')
-    .not('user_id', 'in', `(${swipedIds.join(',') || "''"})`)
-    .eq('country', myProfile.country)
-    .limit(20);
+    .not('user_id', 'in', `(${swipedIds.join(',') || "''"})`);
 
-  if (myProfile.interested_in !== 'both') {
-    query = query.eq('gender', myProfile.interested_in);
+  // Only filter by country if the user has a country set
+  if (myProfile.country) {
+    query = query.eq('country', myProfile.country);
   }
+
+  // Filter by gender preference
+  if (myProfile.interested_in && myProfile.interested_in !== 'both') {
+    query = query.eq('gender', myProfile.interested_in === 'men' ? 'man' : 'woman');
+  }
+
+  query = query.limit(20);
 
   const { data, error } = await query;
   if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+  res.json(data || []);
 });
 
 // Get profile by id
